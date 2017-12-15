@@ -5,8 +5,6 @@ from __future__ import (
 import os
 from setuptools import find_packages, setup
 
-from pubsub import __version__ as VERSION
-
 if not os.getenv('JENKINS_URL'):
     with open(
             os.path.join(
@@ -21,7 +19,7 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 setup(
     name='pubsubpy',
-    version=VERSION,
+    version='0.1.0',
     packages=find_packages(),
     install_requires=[
         'future',
