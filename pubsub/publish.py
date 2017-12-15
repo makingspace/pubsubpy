@@ -2,7 +2,6 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 from kombu import Connection, Exchange
 
-
 AMQP_URL = 'amqp://rzfgdjss:84cYeZtj5J9cb821twXu_R5fSDjRnh2q@spider.rmq.cloudamqp.com/rzfgdjss'
 MODEL_EXCHANGE = 'model_event_exchange'
 
@@ -19,7 +18,8 @@ def publish_model_event(model_name, event_name, obj):
     """Send a model event to the pubsub exchange.
     """
     topic = routing_key(model_name, event_name)
-    model_exchange = Exchange(MODEL_EXCHANGE, topic, durable=True)
     with Connection(AMQP_URL) as connection:
+        model_exchange = Exchange(MODEL_EXCHANGE, 'topic', connection, durable=True)
+        model_exchange.declare()
         producer = connection.Producer(serializer='json')
         producer.publish(payload(obj), exchange=model_exchange, routing_key=topic)
