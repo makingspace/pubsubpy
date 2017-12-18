@@ -12,10 +12,11 @@ pipeline {
         stage('Test') {
             steps {
                 sh """#!/bin/bash
-                    export PATH="/home/ubuntu/.pyenv/bin:$PATH"
+                    export PATH="~/.pyenv/bin:$PATH"
                     eval "\$(pyenv init -)"
                     eval "\$(pyenv virtualenv-init -)"
                     pyenv local 3.6.3 2.7.14 3.4.3
+                    pip install tox
                     tox
                 """
             }
