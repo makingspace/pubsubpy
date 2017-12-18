@@ -16,6 +16,7 @@ pipeline {
                     eval "\$(pyenv init -)"
                     eval "\$(pyenv virtualenv-init -)"
                     pyenv local 3.6.3 2.7.14 3.4.3
+                    pip install tox
                     tox
                 """
             }
