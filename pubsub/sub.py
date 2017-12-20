@@ -1,18 +1,33 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
-from functools import wraps
 import socket
+from functools import wraps
 
-from kombu import Connection, Exchange, Queue
-
+import kombu
 
 AMQP_URL = 'amqp://rzfgdjss:84cYeZtj5J9cb821twXu_R5fSDjRnh2q@spider.rmq.cloudamqp.com/rzfgdjss'
 MODEL_EXCHANGE = 'model_event_exchange'
 
-g_model_exchange = Exchange(MODEL_EXCHANGE, 'topic')
+g_model_exchange = kombu.Exchange(MODEL_EXCHANGE, 'topic')
 
 # List of tuples (Queue, Callback)
-__topic_registry = []
+_topic_registry = []
+
+
+def _create_or_verify_queue(amqp_url, *args, **kwargs):
+    """Create or verify existence of queue on AMQP server.
+    """
+    queue = kombu.Queue(*args, **kwargs)
+    with kombu.Connection(amqp_url) as connection:
+        queue(connection).declare()
+    return queue
+
+
+def _register_subscriber(queue, function):
+    """Register a function as a subscriber callback for a topic queue.
+    """
+    _topic_registry.append((queue, function))
 
 
 def subscribe(topic):
@@ -21,14 +36,12 @@ def subscribe(topic):
     The decorated function needs to take two parameters, body and message,
     and is documented in the kombu docs under consumer callbacks.
     """
+
     def wrapper(func):
         # Create Queue from topic.
         queue_name = '{}.{}::{}'.format(func.__module__, func.__name__, topic)
-        queue = Queue(queue_name, exchange=g_model_exchange, routing_key=topic)
-
-        # Make sure the queue is created on the AMQP server.
-        with Connection(AMQP_URL) as connection:
-            queue(connection).declare()
+        queue = _create_or_verify_queue(
+            queue_name, exchange=g_model_exchange, routing_key=topic)
 
         # Make sure message is acked after callback is executed.
         @wraps(func)
@@ -38,24 +51,34 @@ def subscribe(topic):
             return r
 
         # Register the function to the queue in global registry.
-        __topic_registry.append((queue, new_func))
+        _register_subscriber(queue, new_func)
         return new_func
 
     return wrapper
 
 
+def _drain_all_events(connection, timeout):
+    """Drain events in all queues until timeout seconds with no events.
+    """
+    while True:
+        try:
+            connection.drain_events(timeout=timeout)
+        except socket.timeout:
+            break
+
+
 def drain():
     """Consume all registered queues and execute all subscribed actions.
     """
-    with Connection(AMQP_URL) as connection:
+    with kombu.Connection(AMQP_URL) as connection:
         # Connect all of the registered queues.
-        for q, _ in __topic_registry:
+        for q, _ in _topic_registry:
             q(connection).declare()
 
         # Set up the consumers in preparation for the drain. Consumers need to
         # stay in scope until the drain loop is complete.
         consumers = []
-        for q, f in __topic_registry:
+        for q, f in _topic_registry:
             consumer = connection.Consumer(q, callbacks=[f])
             consumer.consume()
             consumers.append(consumer)
@@ -63,8 +86,4 @@ def drain():
         # Keep grabbing things out of the channel until IDLE_TIMEOUT seconds
         # elapse without any events.
         IDLE_TIMEOUT = 2  # seconds
-        while True:
-            try:
-                connection.drain_events(timeout=IDLE_TIMEOUT)
-            except socket.timeout:
-                break
+        _drain_all_events(connection, IDLE_TIMEOUT)

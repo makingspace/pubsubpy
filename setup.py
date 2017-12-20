@@ -29,6 +29,7 @@ setup(
         'pytest-runner',
     ],
     tests_require=[
+        'mock',
         'pytest',
     ],
     include_package_data=True,
