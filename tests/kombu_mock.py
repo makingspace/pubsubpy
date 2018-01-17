@@ -41,18 +41,20 @@ def patch(kombu_module):
     def decorator(func):
         @wraps(func)
         def wrapper(self):
-            old_Connection = kombu_module.Connection
-            old_Exchange = kombu_module.Connection
-            old_Queue = kombu_module.Queue
-            kombu_module.Connection = Connection
-            kombu_module.Exchange = Exchange
-            kombu_module.Queue = Queue
-            kombu_module.Exchange.reset_mock()
-            kombu_module.Queue.reset_mock()
-            func(self)
-            kombu_module.Connection = old_Connection
-            kombu_module.Exchange = old_Exchange
-            kombu_module.Queue = old_Queue
+            try:
+                old_Connection = kombu_module.Connection
+                old_Exchange = kombu_module.Connection
+                old_Queue = kombu_module.Queue
+                kombu_module.Connection = Connection
+                kombu_module.Exchange = Exchange
+                kombu_module.Queue = Queue
+                kombu_module.Exchange.reset_mock()
+                kombu_module.Queue.reset_mock()
+                func(self)
+            finally:
+                kombu_module.Connection = old_Connection
+                kombu_module.Exchange = old_Exchange
+                kombu_module.Queue = old_Queue
 
         return wrapper
 

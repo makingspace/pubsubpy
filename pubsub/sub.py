@@ -37,9 +37,12 @@ def subscribe(topic):
     and is documented in the kombu docs under consumer callbacks.
     """
 
+    def __create_queue_name(func, topic):
+        return '{}.{}::{}'.format(func.__module__, func.__name__, topic)
+
     def wrapper(func):
         # Create Queue from topic.
-        queue_name = '{}.{}::{}'.format(func.__module__, func.__name__, topic)
+        queue_name = __create_queue_name(func, topic)
         queue = _create_or_verify_queue(
             queue_name, exchange=g_model_exchange, routing_key=topic)
 
