@@ -42,7 +42,7 @@ def subscribe(topic):
             get_config_param(MODEL_EXCHANGE), 'topic')
         queue_name = __create_queue_name(func, topic)
         queue = _create_or_verify_queue(
-            queue_name, exchange=model_exchange, routing_key=topic)
+            get_config_param(AMQP_URL), queue_name, exchange=model_exchange, routing_key=topic)
 
         # Make sure message is acked after callback is executed.
         @wraps(func)
