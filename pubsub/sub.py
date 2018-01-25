@@ -39,7 +39,7 @@ def subscribe(topic):
     def wrapper(func):
         # Create Queue from topic.
         model_exchange = kombu.Exchange(
-            get_config_param('MODEL_EXCHANGE'), 'topic')
+            get_config_param('model_exchange'), 'topic')
         queue_name = __create_queue_name(func, topic)
         queue = _create_or_verify_queue(
             queue_name, exchange=model_exchange, routing_key=topic)
@@ -71,7 +71,7 @@ def _drain_all_events(connection, timeout):
 def drain():
     """Consume all registered queues and execute all subscribed actions.
     """
-    with kombu.Connection(get_config_param('AMQP_URL')) as connection:
+    with kombu.Connection(get_config_param('amqp_url')) as connection:
         # Connect all of the registered queues.
         for q, _ in _topic_registry:
             q(connection).declare()

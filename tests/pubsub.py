@@ -14,8 +14,8 @@ from . import kombu_mock
 class PubsubTestBase(TestCase):
     def setUp(self):
         setattr(pubsub, '__GLOBAL_CONFIG', {
-            'AMQP_URL': 'test',
-            'MODEL_EXCHANGE': 'test',
+            'amqp_url': 'test',
+            'model_exchange': 'test',
         })
 
 
