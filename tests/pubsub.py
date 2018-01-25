@@ -11,7 +11,15 @@ import pubsub
 from . import kombu_mock
 
 
-class PublishTests(TestCase):
+class PubsubTestBase(TestCase):
+    def setUp(self):
+        setattr(pubsub, '__GLOBAL_CONFIG', {
+            pubsub.AMQP_URL: 'test',
+            pubsub.MODEL_EXCHANGE: 'test',
+        })
+
+
+class PublishTests(PubsubTestBase):
     @kombu_mock.patch(kombu)
     def test_publish_model_event(self):
         model_name = 'TestModel'
@@ -29,7 +37,7 @@ def func(b, m):
     return None
 
 
-class SubscribeTests(TestCase):
+class SubscribeTests(PubsubTestBase):
     @kombu_mock.patch(kombu)
     def test_subscribe_creates_queue(self):
         pubsub.subscribe('TestModel.cancelled')(func)
