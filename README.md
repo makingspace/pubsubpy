@@ -87,7 +87,9 @@ def pubsub_listen():
 ## Background
 
 ### Publish/subscribe systems
+
 [PubSub pattern - Wikipedia](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern)
+
 [RabbitMQ PubSub example](https://www.rabbitmq.com/tutorials/tutorial-three-python.html)
 
 ## Contributing
