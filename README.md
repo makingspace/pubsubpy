@@ -11,7 +11,7 @@ depot --install pubsubpy
 
 ## Interface
 
-### Configuratiion
+### Configuration
 
 #### `init()`
 
@@ -36,7 +36,7 @@ if PUBSUB_AMQP_URL:
 
 ### Publishing
 
-#### `publish_model_event()`
+#### `publish_model_event(model_name, event_name, obj)`
 
 `model_name` and `event_name` are used to compose the queue name for this type of message, `obj` is the arbitrary data describing the update.
 
@@ -53,12 +53,25 @@ pubsub.publish_model_event('booking','saved', instance.to_service_model())
 
 ### Subscribing
 
-#### `@subscribe()`
+#### `@subscribe(topic)`
 
 Use this decorator to register a function as a handler for model events described by `topic`. It will be registered as a callback and used to process queue events whenever subscription processing occurs (triggered by a call to `drain()`).
 
+The decorated function should take two positional arguments, for instance:
+```
+@subscribe('booking.*')
+def process_booking_event(body, message):
+    ...
+```
+
 ##### Args
 * `topic`: string of the topic name, e.g. `booking.*`, `booking.updated`
+
+##### Decorated Function Args
+* `body`: dict which is the payload of the message, currently the format is `{"object": obj}` where `obj` is the value of the `obj` parameter passed into the call to `publish_model_event()` that created this update
+* `message`: the entire message object (headers, metadata, body, etc) from the underlying `kombu` library
+
+In most cases, the `body` argument should be sufficient to process events, as message acking is done by the pubsub library.
 
 ##### Example
 ```
