@@ -6,7 +6,7 @@ from functools import wraps
 
 import kombu
 
-from . import get_config_param, AMQP_URL, MODEL_EXCHANGE
+from . import get_config_param, AMQP_URL, MODEL_EXCHANGE, get_connection
 
 # List of tuples (Queue, Callback)
 _topic_registry = []
@@ -16,7 +16,7 @@ def _create_or_verify_queue(amqp_url, *args, **kwargs):
     """Create or verify existence of queue on AMQP server.
     """
     queue = kombu.Queue(*args, **kwargs)
-    with kombu.Connection(amqp_url) as connection:
+    with get_connection() as connection:
         queue(connection).declare()
     return queue
 
@@ -71,7 +71,7 @@ def _drain_all_events(connection, timeout):
 def drain():
     """Consume all registered queues and execute all subscribed actions.
     """
-    with kombu.Connection(get_config_param(AMQP_URL)) as connection:
+    with get_connection() as connection:
         # Connect all of the registered queues.
         for q, _ in _topic_registry:
             q(connection).declare()

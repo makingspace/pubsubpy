@@ -41,6 +41,7 @@ def patch(kombu_module):
     def decorator(func):
         @wraps(func)
         def wrapper(self):
+            from pubsub import __GLOBAL_CONFIG, CONNECTION, AMQP_URL
             try:
                 old_Connection = kombu_module.Connection
                 old_Exchange = kombu_module.Connection
@@ -50,6 +51,7 @@ def patch(kombu_module):
                 kombu_module.Queue = Queue
                 kombu_module.Exchange.reset_mock()
                 kombu_module.Queue.reset_mock()
+                __GLOBAL_CONFIG[CONNECTION] = Connection(__GLOBAL_CONFIG[AMQP_URL])
                 func(self)
             finally:
                 kombu_module.Connection = old_Connection
