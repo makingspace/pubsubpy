@@ -5,6 +5,7 @@ from functools import wraps
 
 import mock
 
+
 class Pool(object):
     def __init__(self, connection, limit=None):
         self.connection = connection
@@ -42,6 +43,7 @@ class Connection(object):
 
     def Pool(self, limit=None):
         return Pool(self, limit=limit)
+
 
 Exchange = mock.MagicMock()
 Queue = mock.MagicMock()

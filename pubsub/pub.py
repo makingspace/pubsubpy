@@ -2,9 +2,8 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import kombu
-from kombu.pools import connections
 
-from . import AMQP_URL, MODEL_EXCHANGE, get_config_param, get_connection
+from . import MODEL_EXCHANGE, acquire, get_config_param
 
 
 def routing_key(model_name, event_name):
@@ -35,7 +34,6 @@ def publish_model_event(model_name, event_name, obj):
     """Send a model event to the pubsub exchange.
     """
     topic = routing_key(model_name, event_name)
-    connection = get_connection()
-    with connections[connection].acquire(block=True) as conn:
-        model_exchange = _create_or_verify_model_exchange(conn)
-        _publish_to_exchange_topic(conn, model_exchange, topic, obj)
+    with acquire() as connection:
+        model_exchange = _create_or_verify_model_exchange(connection)
+        _publish_to_exchange_topic(connection, model_exchange, topic, obj)

@@ -31,9 +31,11 @@ def get_config_param(k):
     return __GLOBAL_CONFIG.get(k)
 
 
-def get_connection():
+def acquire():
+    from kombu.pools import connections
     assert __GLOBAL_CONFIG, 'init() needs to have been called by now'
-    return get_config_param(CONNECTION)
+    connection = get_config_param(CONNECTION)
+    return connections[connection].acquire(block=True)
 
 
 from .pub import publish_model_event  # noqa

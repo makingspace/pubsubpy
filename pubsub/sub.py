@@ -5,9 +5,8 @@ import socket
 from functools import wraps
 
 import kombu
-from kombu.pools import connections
 
-from . import AMQP_URL, MODEL_EXCHANGE, get_config_param, get_connection
+from . import AMQP_URL, MODEL_EXCHANGE, acquire, get_config_param
 
 # List of tuples (Queue, Callback)
 _topic_registry = []
@@ -17,8 +16,7 @@ def _create_or_verify_queue(amqp_url, *args, **kwargs):
     """Create or verify existence of queue on AMQP server.
     """
     queue = kombu.Queue(*args, **kwargs)
-    connection = get_connection()
-    with connections[connection].acquire(block=True) as conn:
+    with acquire() as conn:
         queue(conn).declare()
     return queue
 
@@ -35,6 +33,7 @@ def subscribe(topic):
     The decorated function needs to take two parameters, body and message,
     and is documented in the kombu docs under consumer callbacks.
     """
+
     def __create_queue_name(func, topic):
         return '{}.{}::{}'.format(func.__module__, func.__name__, topic)
 
@@ -44,7 +43,10 @@ def subscribe(topic):
             get_config_param(MODEL_EXCHANGE), 'topic')
         queue_name = __create_queue_name(func, topic)
         queue = _create_or_verify_queue(
-            get_config_param(AMQP_URL), queue_name, exchange=model_exchange, routing_key=topic)
+            get_config_param(AMQP_URL),
+            queue_name,
+            exchange=model_exchange,
+            routing_key=topic)
 
         # Make sure message is acked after callback is executed.
         @wraps(func)
@@ -73,17 +75,16 @@ def _drain_all_events(connection, timeout):
 def drain():
     """Consume all registered queues and execute all subscribed actions.
     """
-    connection = get_connection()
-    with connections[connection].acquire(block=True) as conn:
+    with acquire() as connection:
         # Connect all of the registered queues.
         for q, _ in _topic_registry:
-            q(conn).declare()
+            q(connection).declare()
 
         # Set up the consumers in preparation for the drain. Consumers need to
         # stay in scope until the drain loop is complete.
         consumers = []
         for q, f in _topic_registry:
-            consumer = conn.Consumer(q, callbacks=[f])
+            consumer = connection.Consumer(q, callbacks=[f])
             consumer.consume()
             consumers.append(consumer)
 
