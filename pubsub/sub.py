@@ -5,8 +5,9 @@ import socket
 from functools import wraps
 
 import kombu
+from kombu.pools import connections
 
-from . import get_config_param, AMQP_URL, MODEL_EXCHANGE, get_connection
+from . import AMQP_URL, MODEL_EXCHANGE, get_config_param, get_connection
 
 # List of tuples (Queue, Callback)
 _topic_registry = []
@@ -16,8 +17,9 @@ def _create_or_verify_queue(amqp_url, *args, **kwargs):
     """Create or verify existence of queue on AMQP server.
     """
     queue = kombu.Queue(*args, **kwargs)
-    with get_connection() as connection:
-        queue(connection).declare()
+    connection = get_connection()
+    with connections[connection].acquire(block=True) as conn:
+        queue(conn).declare()
     return queue
 
 
@@ -71,16 +73,17 @@ def _drain_all_events(connection, timeout):
 def drain():
     """Consume all registered queues and execute all subscribed actions.
     """
-    with get_connection() as connection:
+    connection = get_connection()
+    with connections[connection].acquire(block=True) as conn:
         # Connect all of the registered queues.
         for q, _ in _topic_registry:
-            q(connection).declare()
+            q(conn).declare()
 
         # Set up the consumers in preparation for the drain. Consumers need to
         # stay in scope until the drain loop is complete.
         consumers = []
         for q, f in _topic_registry:
-            consumer = connection.Consumer(q, callbacks=[f])
+            consumer = conn.Consumer(q, callbacks=[f])
             consumer.consume()
             consumers.append(consumer)
 

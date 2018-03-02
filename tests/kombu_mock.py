@@ -5,6 +5,14 @@ from functools import wraps
 
 import mock
 
+class Pool(object):
+    def __init__(self, connection, limit=None):
+        self.connection = connection
+        self.limit = limit
+
+    def acquire(self, block=True):
+        return self.connection
+
 
 class Connection(object):
 
@@ -32,6 +40,8 @@ class Connection(object):
     def Consumer(self, *args, **kwargs):
         return self.consumer
 
+    def Pool(self, limit=None):
+        return Pool(self, limit=limit)
 
 Exchange = mock.MagicMock()
 Queue = mock.MagicMock()
@@ -51,7 +61,8 @@ def patch(kombu_module):
                 kombu_module.Queue = Queue
                 kombu_module.Exchange.reset_mock()
                 kombu_module.Queue.reset_mock()
-                __GLOBAL_CONFIG[CONNECTION] = Connection(__GLOBAL_CONFIG[AMQP_URL])
+                __GLOBAL_CONFIG[CONNECTION] = Connection(
+                    __GLOBAL_CONFIG[AMQP_URL])
                 func(self)
             finally:
                 kombu_module.Connection = old_Connection
