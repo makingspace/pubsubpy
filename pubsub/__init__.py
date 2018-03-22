@@ -53,6 +53,8 @@ class PubSubConsumer(ConsumerMixin):
     def __repr__(self):
         return "PubSubConsumer: {}/{}".format(self.queue.name, self.callback.__name__)
 
+logging.basicConfig()
+
 class PubSub(object):
     def __init__(self, amqp_url=None, model_exchange=None, **kwargs):
         if not (amqp_url and model_exchange):
@@ -104,7 +106,6 @@ class PubSub(object):
         """Register a function as a subscriber callback for a topic queue.
         """
         pubsub_consumer = PubSubConsumer(self, queue, function)
-
         log = self.verbosity > PubSubVerbosity.NONE
         if log:
             self.logger.info(
@@ -128,9 +129,7 @@ class PubSub(object):
     def _create_or_verify_queue(self, amqp_url, *args, **kwargs):
         """Create or verify existence of queue on AMQP server.
         """
-        print("---creating")
         queue = Queue(*args, **kwargs)
-        print("Queu", queue)
         with self.acquire() as conn:
             queue(conn).declare()
         return queue
@@ -179,8 +178,6 @@ class PubSub(object):
             # Keep grabbing things out of the channel until IDLE_TIMEOUT seconds
             # elapse without any events.
             IDLE_TIMEOUT = 2  # seconds
-            print("draining")
-            print(drain_all_events)
             drain_all_events(connection, IDLE_TIMEOUT)
 
     def _publish_to_exchange_topic(self, connection, exchange, topic, obj):
