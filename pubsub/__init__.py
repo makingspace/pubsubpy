@@ -53,17 +53,15 @@ class PubSubConsumerManager(ConsumerMixin):
         self.pubsub = pubsub
 
         self.connection = pubsub.connection
-        self.queues = []
-        self.callbacks = []
+        self.callback_pairs = []
 
     def add_callback(self, queue, callback):
-        self.queues.append(queue)
-        self.callbacks.append(callback)
+        self.callback_pairs.append((queue, callback))
 
     def get_consumers(self, Consumer, channel):
         return [
             Consumer(queues=[queue], callbacks=[callback, self.ack])
-            for queue, callback in zip(self.queues, self.callbacks)
+            for queue, callback in self.callback_pairs
         ]
 
     def ack(self, body, message):
@@ -72,9 +70,28 @@ class PubSubConsumerManager(ConsumerMixin):
 
         message.ack()
 
+    def declare(self, connection):
+        # Connect all of the registered queues.
+        for queue in self.queues:
+            queue(connection).declare()
+
+    TOKENS = 1
+    IDLE_TIMEOUT = 2
+
+    def drain(self):
+        """
+        Run inner loop of run() exactly once.
+        """
+        if self.restart_limit.can_consume(self.TOKENS):
+            try:
+                for _ in self.consume(limit=None, timeout=self.IDLE_TIMEOUT):
+                    pass
+            except socket.timeout:
+                return
+
     def __repr__(self):
         return "PubSubConsumerManager: {}".format(", ".join(
-            queue.name for queue in self.queues))
+            queue.name for queue, _ in self.callback_pairs))
 
 
 logging.basicConfig()
@@ -126,7 +143,7 @@ class PubSub(object):
 
         if log:
             self.logger.debug("Now {} consumers registered.".format(
-                len(self.consumer_manager.callbacks)))
+                len(self.consumer_manager.callback_pairs)))
 
     def _create_or_verify_model_exchange(self, connection):
         """Create or verify existence of model exchange on AMQP server.
@@ -178,25 +195,13 @@ class PubSub(object):
     def drain(self):
         """Consume all registered queues and execute all subscribed actions.
         """
-        IDLE_TIMEOUT = 2  # seconds
-        TOKENS = 1
-
         if self.verbosity == PubSubVerbosity.DEBUG:
             self.logger.debug("Draining.")
 
         with self.acquire() as connection:
-            # Connect all of the registered queues.
-            for queue in self.consumer_manager.queues:
-                queue(connection).declare()
-
-            # Run inner loop of run() exactly once.
-            if self.consumer_manager.restart_limit.can_consume(TOKENS):
-                try:
-                    for _ in self.consumer_manager.consume(
-                            limit=None, timeout=IDLE_TIMEOUT):
-                        pass
-                except socket.timeout:
-                    return
+            self.consumer_manager.declare(connection)
+            # NOTE: Is it a problem that we don't pass connection in to drain()?
+            self.consumer_manager.drain()
 
     def _publish_to_exchange_topic(self, connection, exchange, topic, obj):
         """Publish the update object to a specific topic on a topic exchange.

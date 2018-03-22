@@ -39,14 +39,14 @@ def func(b, m):
 def test_subscribe_creates_queue(pubsub):
     topic = 'TestModel.cancelled'
 
-    assert len(pubsub.consumer_manager.queues) == 0
+    assert len(pubsub.consumer_manager.callback_pairs) == 0
 
     with kombu_mock.patch(kombu, pubsub):
         pubsub.subscribe(topic)(func)
 
-    assert len(pubsub.consumer_manager.queues) == 1
+    assert len(pubsub.consumer_manager.callback_pairs) == 1
 
-    queue = pubsub.consumer_manager.queues[0]
+    queue = pubsub.consumer_manager.callback_pairs[0][0]
     assert queue.routing_key == topic
 
 
@@ -54,4 +54,4 @@ def test_subscribe_adds_to_registry(pubsub):
     with kombu_mock.patch(kombu, pubsub):
         pubsub.subscribe('TestModel.cancelled')(func)
 
-    assert func.__name__ == pubsub.consumer_manager.callbacks[0].__name__
+    assert func.__name__ == pubsub.consumer_manager.callback_pairs[0][1].__name__
