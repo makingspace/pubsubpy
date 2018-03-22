@@ -2,13 +2,14 @@ from __future__ import division, print_function, unicode_literals
 
 import logging
 import os
+import importlib
+import socket
 
 from kombu import Connection, Exchange, Queue
 from kombu.mixins import ConsumerMixin
 from kombu.pools import connections as kombu_connection_pools
 
 from .pub import payload, routing_key
-from .sub import drain_all_events
 
 AMQP_URL = 'amqp_url'
 MODEL_EXCHANGE = 'model_exchange'
@@ -31,17 +32,22 @@ class PubSubVerbosity:
     _values = {NONE, NORMAL, DEBUG}
 
 
-class PubSubConsumer(ConsumerMixin):
-    def __init__(self, pubsub, queue, callback):
+class PubSubConsumerManager(ConsumerMixin):
+    def __init__(self, pubsub):
         self.pubsub = pubsub
 
         self.connection = pubsub.connection
-        self.queue = queue
-        self.callback = callback
+        self.queues = []
+        self.callbacks = []
+
+    def add_callback(self, queue, callback):
+        self.queues.append(queue)
+        self.callbacks.append(callback)
 
     def get_consumers(self, Consumer, channel):
         return [
-            Consumer(queues=[self.queue], callbacks=[self.callback, self.ack])
+            Consumer(queues=[queue], callbacks=[callback, self.ack])
+            for queue, callback in zip(self.queues, self.callbacks)
         ]
 
     def ack(self, body, message):
@@ -51,9 +57,12 @@ class PubSubConsumer(ConsumerMixin):
         message.ack()
 
     def __repr__(self):
-        return "PubSubConsumer: {}/{}".format(self.queue.name, self.callback.__name__)
+        return "PubSubConsumerManager: {}".format(", ".join(
+            queue.name for queue in self.queues))
+
 
 logging.basicConfig()
+
 
 class PubSub(object):
     def __init__(self, amqp_url=None, model_exchange=None, **kwargs):
@@ -69,11 +78,14 @@ class PubSub(object):
             for k, v in kwargs.items() if k in __OPTIONAL_INIT_KWARGS
         }
 
-        self.consumers = []  # type: List[PubSubConsumer]
+        self.consumer_manager = PubSubConsumerManager(self)
 
         self.verbosity = self._get_verbosity()
         self.logger = logging.getLogger("{}.{}".format(
             __name__, self.__class__.__name__))
+
+    def _new_connection(self):
+        return Connection(self.amqp_url)
 
     def _get_verbosity(self):
         verbosity = PubSubVerbosity.NORMAL
@@ -90,33 +102,27 @@ class PubSub(object):
 
         return verbosity
 
-    def _new_connection(self):
-        return Connection(self.amqp_url)
+    def import_subscribers(self, dot_paths):
+        for dot_path in dot_paths:
+            importlib.import_module(dot_path)
 
     def acquire(self):
         return kombu_connection_pools[self.connection].acquire(block=True)
 
-    def __getattr__(self, attr):
-        if attr in __OPTIONAL_INIT_KWARGS:
-            return self.config[attr]
-
-        return super(PubSub, self).__getattr(attr)
-
     def _register_subscriber(self, queue, function):
         """Register a function as a subscriber callback for a topic queue.
         """
-        pubsub_consumer = PubSubConsumer(self, queue, function)
         log = self.verbosity > PubSubVerbosity.NONE
         if log:
             self.logger.info(
                 "Registering subscriber function {} to queue {}".format(
                     function, queue))
 
-        self.consumers.append(pubsub_consumer)
+        self.consumer_manager.add_callback(queue, function)
 
         if log:
             self.logger.debug("Now {} consumers registered.".format(
-                len(self.consumers)))
+                len(self.consumer_manager.callbacks)))
 
     def _create_or_verify_model_exchange(self, connection):
         """Create or verify existence of model exchange on AMQP server.
@@ -164,21 +170,18 @@ class PubSub(object):
         """Consume all registered queues and execute all subscribed actions.
         """
         with self.acquire() as connection:
+            IDLE_TIMEOUT = 10  # seconds
+
             # Connect all of the registered queues.
-            for consumer in self.consumers:
-                consumer.queue(connection).declare()
+            for queue in self.consumer_manager.queues:
+                queue(connection).declare()
 
             # Set up the consumers in preparation for the drain. Consumers need to
             # stay in scope until the drain loop is complete.
-            _consumers = []
-            for consumer in self.consumers:
-                consumer.consume()
-                _consumers.append(consumer)
-
-            # Keep grabbing things out of the channel until IDLE_TIMEOUT seconds
-            # elapse without any events.
-            IDLE_TIMEOUT = 2  # seconds
-            drain_all_events(connection, IDLE_TIMEOUT)
+            try:
+                self.consumer_manager.run(timeout=IDLE_TIMEOUT)
+            except socket.timeout:
+                pass
 
     def _publish_to_exchange_topic(self, connection, exchange, topic, obj):
         """Publish the update object to a specific topic on a topic exchange.
@@ -192,4 +195,5 @@ class PubSub(object):
         topic = routing_key(model_name, event_name)
         with self.acquire() as connection:
             model_exchange = self._create_or_verify_model_exchange(connection)
-            self._publish_to_exchange_topic(connection, model_exchange, topic, obj)
+            self._publish_to_exchange_topic(connection, model_exchange, topic,
+                                            obj)
