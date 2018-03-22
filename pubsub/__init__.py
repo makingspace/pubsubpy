@@ -31,6 +31,22 @@ class PubSubVerbosity:
 
     _values = {NONE, NORMAL, DEBUG}
 
+    @classmethod
+    def get_verbosity(cls):
+        verbosity = cls.NORMAL
+
+        if PUBSUB_VERBOSITY in os.environ:
+            verbosity_environment_setting = os.environ.get(PUBSUB_VERBOSITY)
+            if verbosity_environment_setting in cls._values:
+                verbosity = verbosity_environment_setting
+            else:
+                lookup = cls._reverse.get(
+                    verbosity_environment_setting.upper())
+                if lookup:
+                    verbosity = lookup
+
+        return verbosity
+
 
 class PubSubConsumerManager(ConsumerMixin):
     def __init__(self, pubsub):
@@ -80,27 +96,12 @@ class PubSub(object):
 
         self.consumer_manager = PubSubConsumerManager(self)
 
-        self.verbosity = self._get_verbosity()
+        self.verbosity = PubSubVerbosity.get_verbosity()
         self.logger = logging.getLogger("{}.{}".format(
             __name__, self.__class__.__name__))
 
     def _new_connection(self):
         return Connection(self.amqp_url)
-
-    def _get_verbosity(self):
-        verbosity = PubSubVerbosity.NORMAL
-
-        if PUBSUB_VERBOSITY in os.environ:
-            verbosity_environment_setting = os.environ.get(PUBSUB_VERBOSITY)
-            if verbosity_environment_setting in PubSubVerbosity._values:
-                verbosity = verbosity_environment_setting
-            else:
-                lookup = PubSubVerbosity._reverse.get(
-                    verbosity_environment_setting.upper())
-                if lookup:
-                    verbosity = lookup
-
-        return verbosity
 
     def import_subscribers(self, dot_paths):
         for dot_path in dot_paths:
