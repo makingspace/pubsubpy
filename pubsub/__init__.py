@@ -49,6 +49,13 @@ class PubSubVerbosity:
 
 
 class PubSubConsumerManager(ConsumerMixin):
+    """
+    Object that governs draining events associated with subscribed queues.
+
+    Manages a list of topics and callbacks, and implements the get_consumers()
+    API to generate one kombu.Consumer for each pair.
+    """
+
     def __init__(self, pubsub):
         self.pubsub = pubsub
 
@@ -98,6 +105,10 @@ logging.basicConfig()
 
 
 class PubSub(object):
+    """
+    Manager for PubSub publishing and consuming.
+    """
+
     def __init__(self, amqp_url=None, model_exchange=None, **kwargs):
         if not (amqp_url and model_exchange):
             raise ValueError("Required parameters: amqp_url, model_exchange")
@@ -121,6 +132,11 @@ class PubSub(object):
         return Connection(self.amqp_url)
 
     def import_subscribers(self, dot_paths):
+        """
+        Convenience method to ensure that all subscriber-decorated functions
+        are registered. Accepts a list of dot-paths to modules containing
+        subscriber functions.
+        """
         for dot_path in dot_paths:
             importlib.import_module(dot_path)
 
@@ -131,7 +147,8 @@ class PubSub(object):
         return kombu_connection_pools[self.connection].acquire(block=True)
 
     def _register_subscriber(self, queue, function):
-        """Register a function as a subscriber callback for a topic queue.
+        """
+        Register a function as a subscriber callback for a topic queue.
         """
         log = self.verbosity > PubSubVerbosity.NONE
         if log:
@@ -146,7 +163,8 @@ class PubSub(object):
                 len(self.consumer_manager.callback_pairs)))
 
     def _create_or_verify_model_exchange(self, connection):
-        """Create or verify existence of model exchange on AMQP server.
+        """
+        Create or verify existence of model exchange on AMQP server.
         """
         model_exchange = Exchange(
             self.model_exchange, 'topic', connection, durable=True)
@@ -154,7 +172,8 @@ class PubSub(object):
         return model_exchange
 
     def _create_or_verify_queue(self, amqp_url, *args, **kwargs):
-        """Create or verify existence of queue on AMQP server.
+        """
+        Create or verify existence of queue on AMQP server.
         """
         queue = Queue(*args, **kwargs)
         with self.acquire() as conn:
@@ -162,7 +181,8 @@ class PubSub(object):
         return queue
 
     def subscribe(self, topic):
-        """Decorate a function to have it act as a callback to messages on a topic.
+        """
+        Decorate a function to have it act as a callback to messages on a topic.
 
         The decorated function needs to take two parameters, body and message,
         and is documented in the kombu docs under consumer callbacks.
@@ -172,9 +192,9 @@ class PubSub(object):
             return '{}.{}::{}'.format(func.__module__, func.__name__, topic)
 
         def wrapper(func):
-            # Create Queue from topic.
             model_exchange = Exchange(self.model_exchange, 'topic')
             queue_name = __create_queue_name(func, topic)
+            # Create Queue from topic.
             queue = self._create_or_verify_queue(
                 self.amqp_url,
                 queue_name,
@@ -193,7 +213,8 @@ class PubSub(object):
         return wrapper
 
     def drain(self):
-        """Consume all registered queues and execute all subscribed actions.
+        """
+        Consume all registered queues and execute all subscribed actions.
         """
         if self.verbosity == PubSubVerbosity.DEBUG:
             self.logger.debug("Draining.")
@@ -204,13 +225,15 @@ class PubSub(object):
             self.consumer_manager.drain()
 
     def _publish_to_exchange_topic(self, connection, exchange, topic, obj):
-        """Publish the update object to a specific topic on a topic exchange.
+        """
+        Publish the update object to a specific topic on a topic exchange.
         """
         producer = self.connection.Producer(serializer='json')
         producer.publish(payload(obj), exchange=exchange, routing_key=topic)
 
     def publish_model_event(self, model_name, event_name, obj):
-        """Send a model event to the pubsub exchange.
+        """
+        Send a model event to the pubsub exchange.
         """
         topic = routing_key(model_name, event_name)
 
