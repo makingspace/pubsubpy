@@ -169,19 +169,22 @@ class PubSub(object):
     def drain(self):
         """Consume all registered queues and execute all subscribed actions.
         """
-        with self.acquire() as connection:
-            IDLE_TIMEOUT = 10  # seconds
+        IDLE_TIMEOUT = 2  # seconds
+        TOKENS = 1
 
+        with self.acquire() as connection:
             # Connect all of the registered queues.
             for queue in self.consumer_manager.queues:
                 queue(connection).declare()
 
-            # Set up the consumers in preparation for the drain. Consumers need to
-            # stay in scope until the drain loop is complete.
-            try:
-                self.consumer_manager.run(timeout=IDLE_TIMEOUT)
-            except socket.timeout:
-                pass
+            # Run inner loop of run() exactly once.
+            if self.consumer_manager.restart_limit.can_consume(TOKENS):
+                try:
+                    for _ in self.consumer_manager.consume(limit=None, timeout=IDLE_TIMEOUT):
+                        pass
+                except socket.timeout:
+                    return
+
 
     def _publish_to_exchange_topic(self, connection, exchange, topic, obj):
         """Publish the update object to a specific topic on a topic exchange.
