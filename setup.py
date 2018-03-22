@@ -19,7 +19,7 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 setup(
     name='pubsubpy',
-    version='2.0b15',
+    version='2.0',
     packages=find_packages(),
     install_requires=[
         'future',
