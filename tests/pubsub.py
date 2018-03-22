@@ -4,15 +4,17 @@ from __future__ import (absolute_import, division, print_function,
 import pytest
 
 import kombu
-import mock
-from pubsub import PubSub
+from pubsub import PubSub, PubSubVerbosity
 
 from . import kombu_mock
 
 
 @pytest.fixture
 def pubsub():
-    return PubSub("test", "test")
+    app = PubSub("test", "test")
+    app.verbosity = PubSubVerbosity.DEBUG
+
+    return app
 
 
 def test_publish_model_event(pubsub):

@@ -107,6 +107,9 @@ class PubSub(object):
             importlib.import_module(dot_path)
 
     def acquire(self):
+        if self.verbosity == PubSubVerbosity.DEBUG:
+            self.logger.debug("Acquiring connection.")
+
         return kombu_connection_pools[self.connection].acquire(block=True)
 
     def _register_subscriber(self, queue, function):
@@ -162,6 +165,11 @@ class PubSub(object):
 
             # Register the function to the queue in object registry.
             self._register_subscriber(queue, func)
+
+            if self.verbosity == PubSubVerbosity.DEBUG:
+                self.logger.info("Subscribing function {} to queue {}.".format(
+                    func.__name__, queue.name))
+
             return func
 
         return wrapper
@@ -172,6 +180,9 @@ class PubSub(object):
         IDLE_TIMEOUT = 2  # seconds
         TOKENS = 1
 
+        if self.verbosity == PubSubVerbosity.DEBUG:
+            self.logger.debug("Draining.")
+
         with self.acquire() as connection:
             # Connect all of the registered queues.
             for queue in self.consumer_manager.queues:
@@ -180,11 +191,11 @@ class PubSub(object):
             # Run inner loop of run() exactly once.
             if self.consumer_manager.restart_limit.can_consume(TOKENS):
                 try:
-                    for _ in self.consumer_manager.consume(limit=None, timeout=IDLE_TIMEOUT):
+                    for _ in self.consumer_manager.consume(
+                            limit=None, timeout=IDLE_TIMEOUT):
                         pass
                 except socket.timeout:
                     return
-
 
     def _publish_to_exchange_topic(self, connection, exchange, topic, obj):
         """Publish the update object to a specific topic on a topic exchange.
@@ -196,6 +207,10 @@ class PubSub(object):
         """Send a model event to the pubsub exchange.
         """
         topic = routing_key(model_name, event_name)
+
+        if self.verbosity == PubSubVerbosity.DEBUG:
+            self.logger.debug("Publishing model event: {}".format(topic))
+
         with self.acquire() as connection:
             model_exchange = self._create_or_verify_model_exchange(connection)
             self._publish_to_exchange_topic(connection, model_exchange, topic,
