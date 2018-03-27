@@ -109,13 +109,17 @@ class PubSub(object):
     Manager for PubSub publishing and consuming.
     """
 
-    def __init__(self, amqp_url=None, model_exchange=None, **kwargs):
+    def __init__(self,
+                 amqp_url=None,
+                 model_exchange="model_event_exchange",
+                 namespace="",
+                 **kwargs):
         if not (amqp_url and model_exchange):
             raise ValueError("Required parameters: amqp_url, model_exchange")
 
         self.amqp_url = amqp_url
-        self.model_exchange = model_exchange
-
+        self.namespace = namespace
+        self._model_exchange = model_exchange
         self.connection = self._new_connection()
         self.config = {
             k: v
@@ -127,6 +131,14 @@ class PubSub(object):
         self.verbosity = PubSubVerbosity.get_verbosity()
         self.logger = logging.getLogger("{}.{}".format(
             __name__, self.__class__.__name__))
+
+    def _namespace(self, value):
+        return value if not self.namespace else "{}_{}".format(value, self.namespace)
+
+    @property
+    def model_exchange(self):
+        return self._namespace(self._model_exchange)
+
 
     def _new_connection(self):
         return Connection(self.amqp_url)
@@ -171,11 +183,11 @@ class PubSub(object):
         model_exchange.declare()
         return model_exchange
 
-    def _create_or_verify_queue(self, amqp_url, *args, **kwargs):
+    def _create_or_verify_queue(self, queue_name, *args, **kwargs):
         """
         Create or verify existence of queue on AMQP server.
         """
-        queue = Queue(*args, **kwargs)
+        queue = Queue(queue_name, *args, **kwargs)
         with self.acquire() as conn:
             queue(conn).declare()
         return queue
@@ -189,14 +201,13 @@ class PubSub(object):
         """
 
         def __create_queue_name(func, topic):
-            return '{}.{}::{}'.format(func.__module__, func.__name__, topic)
+            return self._namespace('{}.{}::{}'.format(func.__module__, func.__name__, topic))
 
         def wrapper(func):
-            model_exchange = Exchange(self.model_exchange, 'topic')
             queue_name = __create_queue_name(func, topic)
+            model_exchange = Exchange(self.model_exchange, 'topic')
             # Create Queue from topic.
             queue = self._create_or_verify_queue(
-                self.amqp_url,
                 queue_name,
                 exchange=model_exchange,
                 routing_key=topic)

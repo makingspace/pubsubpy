@@ -16,6 +16,15 @@ def pubsub():
 
     return app
 
+_NAMESPACE = "namespace"
+
+@pytest.fixture
+def namespaced_pubsub():
+    app = PubSub("test", "test", namespace=_NAMESPACE)
+    app.verbosity = PubSubVerbosity.DEBUG
+
+    return app
+
 
 def test_publish_model_event(pubsub):
     model_name = 'TestModel'
@@ -55,3 +64,11 @@ def test_subscribe_adds_to_registry(pubsub):
         pubsub.subscribe('TestModel.cancelled')(func)
 
     assert func.__name__ == pubsub.consumer_manager.callback_pairs[0][1].__name__
+
+def test_namespacing(namespaced_pubsub):
+    assert namespaced_pubsub.namespace == _NAMESPACE
+
+    with kombu_mock.patch(kombu, namespaced_pubsub):
+        exchange = namespaced_pubsub._create_or_verify_model_exchange(namespaced_pubsub.acquire())
+
+    assert exchange.name == "{}_{}".format(namespaced_pubsub._model_exchange, _NAMESPACE)
