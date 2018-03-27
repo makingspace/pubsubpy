@@ -79,7 +79,7 @@ class PubSubConsumerManager(ConsumerMixin):
 
     def declare(self, connection):
         # Connect all of the registered queues.
-        for queue in self.queues:
+        for queue, _ in self.callback_pairs:
             queue(connection).declare()
 
     TOKENS = 1
@@ -132,13 +132,10 @@ class PubSub(object):
         self.logger = logging.getLogger("{}.{}".format(
             __name__, self.__class__.__name__))
 
-    def _namespace(self, value):
-        return value if not self.namespace else "{}_{}".format(value, self.namespace)
-
     @property
     def model_exchange(self):
-        return self._namespace(self._model_exchange)
-
+        return self._model_exchange if not self.namespace else "{}_{}".format(
+            self._model_exchange, self.namespace)
 
     def _new_connection(self):
         return Connection(self.amqp_url)
@@ -201,16 +198,16 @@ class PubSub(object):
         """
 
         def __create_queue_name(func, topic):
-            return self._namespace('{}.{}::{}'.format(func.__module__, func.__name__, topic))
+            namespace = "[{}]".format(self.namespace) if self.namespace else ""
+            return '{}{}.{}::{}'.format(namespace, func.__module__,
+                                        func.__name__, topic)
 
         def wrapper(func):
             queue_name = __create_queue_name(func, topic)
             model_exchange = Exchange(self.model_exchange, 'topic')
             # Create Queue from topic.
             queue = self._create_or_verify_queue(
-                queue_name,
-                exchange=model_exchange,
-                routing_key=topic)
+                queue_name, exchange=model_exchange, routing_key=topic)
 
             # Register the function to the queue in object registry.
             self._register_subscriber(queue, func)

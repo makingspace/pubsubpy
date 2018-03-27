@@ -4,7 +4,8 @@ from __future__ import (absolute_import, division, print_function,
 import pytest
 
 import kombu
-from pubsub import PubSub, PubSubVerbosity
+from pubsub import PubSub, PubSubVerbosity, PubSubConsumerManager
+import mock
 
 from . import kombu_mock
 
@@ -16,7 +17,9 @@ def pubsub():
 
     return app
 
+
 _NAMESPACE = "namespace"
+
 
 @pytest.fixture
 def namespaced_pubsub():
@@ -63,12 +66,23 @@ def test_subscribe_adds_to_registry(pubsub):
     with kombu_mock.patch(kombu, pubsub):
         pubsub.subscribe('TestModel.cancelled')(func)
 
-    assert func.__name__ == pubsub.consumer_manager.callback_pairs[0][1].__name__
+    assert func.__name__ == pubsub.consumer_manager.callback_pairs[0][
+        1].__name__
+
+    with kombu_mock.patch(kombu, pubsub):
+        with mock.patch.object(PubSubConsumerManager,
+                               'consume') as mock_consume:
+            pubsub.drain()
+
+            mock_consume.assert_called_once()
+
 
 def test_namespacing(namespaced_pubsub):
     assert namespaced_pubsub.namespace == _NAMESPACE
 
     with kombu_mock.patch(kombu, namespaced_pubsub):
-        exchange = namespaced_pubsub._create_or_verify_model_exchange(namespaced_pubsub.acquire())
+        exchange = namespaced_pubsub._create_or_verify_model_exchange(
+            namespaced_pubsub.acquire())
 
-    assert exchange.name == "{}_{}".format(namespaced_pubsub._model_exchange, _NAMESPACE)
+    assert exchange.name == "{}_{}".format(namespaced_pubsub._model_exchange,
+                                           _NAMESPACE)
