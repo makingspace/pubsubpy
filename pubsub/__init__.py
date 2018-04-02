@@ -1,8 +1,8 @@
 from __future__ import division, print_function, unicode_literals
 
+import importlib
 import logging
 import os
-import importlib
 import socket
 
 from kombu import Connection, Exchange, Queue
@@ -63,7 +63,17 @@ class PubSubConsumerManager(ConsumerMixin):
         self.callback_pairs = []
 
     def add_callback(self, queue, callback):
+        log = self.pubsub.verbosity > PubSubVerbosity.NONE
+        if log:
+            self.pubsub.logger.info(
+                "Registering subscriber function {} to queue {}".format(
+                    callback, queue))
+
         self.callback_pairs.append((queue, callback))
+
+        if log:
+            self.pubsub.logger.debug("Now {} consumers registered.".format(
+                len(self.callback_pairs)))
 
     def get_consumers(self, Consumer, channel):
         return [
@@ -119,7 +129,7 @@ class PubSub(object):
 
         self.amqp_url = amqp_url
         self.namespace = namespace
-        self._model_exchange = model_exchange
+        self._model_exchange_name = model_exchange
         self.connection = self._new_connection()
         self.config = {
             k: v
@@ -133,9 +143,9 @@ class PubSub(object):
             __name__, self.__class__.__name__))
 
     @property
-    def model_exchange(self):
-        return self._model_exchange if not self.namespace else "{}_{}".format(
-            self._model_exchange, self.namespace)
+    def model_exchange_name(self):
+        return self._model_exchange_name if not self.namespace else "{}_{}".format(
+            self._model_exchange_name, self.namespace)
 
     def _new_connection(self):
         return Connection(self.amqp_url)
@@ -155,28 +165,12 @@ class PubSub(object):
 
         return kombu_connection_pools[self.connection].acquire(block=True)
 
-    def _register_subscriber(self, queue, function):
-        """
-        Register a function as a subscriber callback for a topic queue.
-        """
-        log = self.verbosity > PubSubVerbosity.NONE
-        if log:
-            self.logger.info(
-                "Registering subscriber function {} to queue {}".format(
-                    function, queue))
-
-        self.consumer_manager.add_callback(queue, function)
-
-        if log:
-            self.logger.debug("Now {} consumers registered.".format(
-                len(self.consumer_manager.callback_pairs)))
-
     def _create_or_verify_model_exchange(self, connection):
         """
         Create or verify existence of model exchange on AMQP server.
         """
         model_exchange = Exchange(
-            self.model_exchange, 'topic', connection, durable=True)
+            self.model_exchange_name, 'topic', connection, durable=True)
         model_exchange.declare()
         return model_exchange
 
@@ -204,17 +198,13 @@ class PubSub(object):
 
         def wrapper(func):
             queue_name = __create_queue_name(func, topic)
-            model_exchange = Exchange(self.model_exchange, 'topic')
+            model_exchange = Exchange(self.model_exchange_name, 'topic')
             # Create Queue from topic.
             queue = self._create_or_verify_queue(
                 queue_name, exchange=model_exchange, routing_key=topic)
 
             # Register the function to the queue in object registry.
-            self._register_subscriber(queue, func)
-
-            if self.verbosity == PubSubVerbosity.DEBUG:
-                self.logger.info("Subscribing function {} to queue {}.".format(
-                    func.__name__, queue.name))
+            self.consumer_manager.add_callback(queue, func)
 
             return func
 

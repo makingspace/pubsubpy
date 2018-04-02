@@ -84,5 +84,5 @@ def test_namespacing(namespaced_pubsub):
         exchange = namespaced_pubsub._create_or_verify_model_exchange(
             namespaced_pubsub.acquire())
 
-    assert exchange.name == "{}_{}".format(namespaced_pubsub._model_exchange,
+    assert exchange.name == "{}_{}".format(namespaced_pubsub._model_exchange_name,
                                            _NAMESPACE)
