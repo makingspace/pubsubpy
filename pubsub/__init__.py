@@ -8,15 +8,22 @@ from kombu import Connection, Exchange, Queue
 from kombu.mixins import ConsumerMixin
 from kombu.pools import connections as kombu_connection_pools
 
-from .pub import payload, routing_key
+__all__ = ["PubSub"]
 
 AMQP_URL = 'amqp_url'
 MODEL_EXCHANGE = 'model_exchange'
 CONNECTION = "__connection"
 
-__OPTIONAL_INIT_KWARGS = set()
-
 logger = logging.getLogger(__name__)
+logging.basicConfig()
+
+
+def routing_key(model_name, event_name):
+    return '{}.{}'.format(model_name, event_name)
+
+
+def payload(obj):
+    return {'object': obj}
 
 
 class PubSubConsumerManager(ConsumerMixin):
@@ -59,7 +66,7 @@ class PubSubConsumerManager(ConsumerMixin):
             queue(connection).declare()
 
     TOKENS = 1
-    IDLE_TIMEOUT = 2
+    IDLE_TIMEOUT_SECONDS = 2
 
     def drain(self):
         """
@@ -67,7 +74,8 @@ class PubSubConsumerManager(ConsumerMixin):
         """
         if self.restart_limit.can_consume(self.TOKENS):
             try:
-                for _ in self.consume(limit=None, timeout=self.IDLE_TIMEOUT):
+                for _ in self.consume(
+                        limit=None, timeout=self.IDLE_TIMEOUT_SECONDS):
                     pass
             except socket.timeout:
                 return
@@ -75,9 +83,6 @@ class PubSubConsumerManager(ConsumerMixin):
     def __repr__(self):
         return "PubSubConsumerManager: {}".format(", ".join(
             queue.name for queue, _ in self.callback_pairs))
-
-
-logging.basicConfig()
 
 
 class PubSub(object):
@@ -97,10 +102,6 @@ class PubSub(object):
         self.namespace = namespace
         self._model_exchange_name = model_exchange
         self.connection = self._new_connection()
-        self.config = {
-            k: v
-            for k, v in kwargs.items() if k in __OPTIONAL_INIT_KWARGS
-        }
 
         self.consumer_manager = PubSubConsumerManager(self)
 
