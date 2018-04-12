@@ -2,7 +2,6 @@ from __future__ import division, print_function, unicode_literals
 
 import importlib
 import logging
-import os
 import socket
 
 from kombu import Connection, Exchange, Queue
@@ -14,38 +13,10 @@ from .pub import payload, routing_key
 AMQP_URL = 'amqp_url'
 MODEL_EXCHANGE = 'model_exchange'
 CONNECTION = "__connection"
-PUBSUB_VERBOSITY = "PUBSUB_VERBOSITY"
 
 __OPTIONAL_INIT_KWARGS = set()
 
-
-class PubSubVerbosity:
-
-    NONE = 0
-    NORMAL = 1
-    DEBUG = 2
-
-    _labels = {NONE: "NONE", NORMAL: "NORMAL", DEBUG: "DEBUG"}
-
-    _reverse = {v: k for k, v in _labels.items()}
-
-    _values = {NONE, NORMAL, DEBUG}
-
-    @classmethod
-    def get_verbosity(cls):
-        verbosity = cls.NORMAL
-
-        if PUBSUB_VERBOSITY in os.environ:
-            verbosity_environment_setting = os.environ.get(PUBSUB_VERBOSITY)
-            if verbosity_environment_setting in cls._values:
-                verbosity = verbosity_environment_setting
-            else:
-                lookup = cls._reverse.get(
-                    verbosity_environment_setting.upper())
-                if lookup:
-                    verbosity = lookup
-
-        return verbosity
+logger = logging.getLogger(__name__)
 
 
 class PubSubConsumerManager(ConsumerMixin):
@@ -63,17 +34,13 @@ class PubSubConsumerManager(ConsumerMixin):
         self.callback_pairs = []
 
     def add_callback(self, queue, callback):
-        log = self.pubsub.verbosity > PubSubVerbosity.NONE
-        if log:
-            self.pubsub.logger.info(
-                "Registering subscriber function {} to queue {}".format(
-                    callback, queue))
+        logger.info("Registering subscriber function {} to queue {}".format(
+            callback, queue))
 
         self.callback_pairs.append((queue, callback))
 
-        if log:
-            self.pubsub.logger.debug("Now {} consumers registered.".format(
-                len(self.callback_pairs)))
+        logger.debug("Now {} consumers registered.".format(
+            len(self.callback_pairs)))
 
     def get_consumers(self, Consumer, channel):
         return [
@@ -82,8 +49,7 @@ class PubSubConsumerManager(ConsumerMixin):
         ]
 
     def ack(self, body, message):
-        if self.pubsub.verbosity == PubSubVerbosity.DEBUG:
-            self.pubsub.logger.debug("{} ACK".format(message))
+        logger.debug("{} ACK".format(message))
 
         message.ack()
 
@@ -138,10 +104,6 @@ class PubSub(object):
 
         self.consumer_manager = PubSubConsumerManager(self)
 
-        self.verbosity = PubSubVerbosity.get_verbosity()
-        self.logger = logging.getLogger("{}.{}".format(
-            __name__, self.__class__.__name__))
-
     @property
     def model_exchange_name(self):
         return self._model_exchange_name if not self.namespace else "{}_{}".format(
@@ -160,8 +122,7 @@ class PubSub(object):
             importlib.import_module(dot_path)
 
     def acquire(self):
-        if self.verbosity == PubSubVerbosity.DEBUG:
-            self.logger.debug("Acquiring connection.")
+        logger.debug("Acquiring connection.")
 
         return kombu_connection_pools[self.connection].acquire(block=True)
 
@@ -214,8 +175,7 @@ class PubSub(object):
         """
         Consume all registered queues and execute all subscribed actions.
         """
-        if self.verbosity == PubSubVerbosity.DEBUG:
-            self.logger.debug("Draining.")
+        logger.debug("Draining.")
 
         with self.acquire() as connection:
             self.consumer_manager.declare(connection)
@@ -235,8 +195,7 @@ class PubSub(object):
         """
         topic = routing_key(model_name, event_name)
 
-        if self.verbosity == PubSubVerbosity.DEBUG:
-            self.logger.debug("Publishing model event: {}".format(topic))
+        logger.debug("Publishing model event: {}".format(topic))
 
         with self.acquire() as connection:
             model_exchange = self._create_or_verify_model_exchange(connection)

@@ -4,7 +4,7 @@ from __future__ import (absolute_import, division, print_function,
 import pytest
 
 import kombu
-from pubsub import PubSub, PubSubVerbosity, PubSubConsumerManager
+from pubsub import PubSub, PubSubConsumerManager
 import mock
 
 from . import kombu_mock
@@ -13,7 +13,6 @@ from . import kombu_mock
 @pytest.fixture
 def pubsub():
     app = PubSub("test", "test")
-    app.verbosity = PubSubVerbosity.DEBUG
 
     return app
 
@@ -24,7 +23,6 @@ _NAMESPACE = "namespace"
 @pytest.fixture
 def namespaced_pubsub():
     app = PubSub("test", "test", namespace=_NAMESPACE)
-    app.verbosity = PubSubVerbosity.DEBUG
 
     return app
 
