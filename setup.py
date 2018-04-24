@@ -1,8 +1,8 @@
-from __future__ import (
-    absolute_import, division, print_function, unicode_literals
-)
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
-import os
+import os, sys
+
 from setuptools import find_packages, setup
 
 if not os.getenv('JENKINS_URL'):
@@ -16,27 +16,25 @@ else:
 
 os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
+setup_requires = ['pytest-runner'] if {'pytest', 'test', 'ptr'}.intersection(
+    sys.argv) else []
 
 setup(
     name='pubsubpy',
-    version='2.1b2',
+    version='2.1b3',
     packages=find_packages(),
     install_requires=[
         'future',
         'kombu',
     ],
-    setup_requires=[
-        'pytest-runner',
-    ],
+    setup_requires=setup_requires,
     tests_require=[
         'mock',
         'pytest',
     ],
     include_package_data=True,
     license='All Rights Reserved',
-    description=(
-        'Client library for an AMQP-based pubsub.'
-    ),
+    description=('Client library for an AMQP-based pubsub.'),
     long_description=README,
     url='https://github.com/makingspace/pubsubpy',
     author='John Sloboda',
