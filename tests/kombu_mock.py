@@ -1,7 +1,7 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-from functools import wraps
+import contextlib
 
 import mock
 
@@ -29,11 +29,23 @@ class Connection(object):
         return self
 
     def __exit__(self, *args, **kwargs):
-        return None
+        pass
 
-    def drain_events(self):
+    def drain_events(self, timeout=None):
         import socket
         raise socket.timeout
+
+    def exchange_declare(self, *args, **kwargs):
+        pass
+
+    def queue_declare(self, *args, **kwargs):
+        pass
+
+    def queue_bind(self, *args, **kwargs):
+        pass
+
+    def prepare_queue_arguments(self, *args, **kwargs):
+        return []
 
     def Producer(self, *args, **kwargs):
         return self.producer
@@ -49,28 +61,20 @@ Exchange = mock.MagicMock()
 Queue = mock.MagicMock()
 
 
-def patch(kombu_module):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(self):
-            from pubsub import __GLOBAL_CONFIG, CONNECTION, AMQP_URL
-            try:
-                old_Connection = kombu_module.Connection
-                old_Exchange = kombu_module.Connection
-                old_Queue = kombu_module.Queue
-                kombu_module.Connection = Connection
-                kombu_module.Exchange = Exchange
-                kombu_module.Queue = Queue
-                kombu_module.Exchange.reset_mock()
-                kombu_module.Queue.reset_mock()
-                __GLOBAL_CONFIG[CONNECTION] = Connection(
-                    __GLOBAL_CONFIG[AMQP_URL])
-                func(self)
-            finally:
-                kombu_module.Connection = old_Connection
-                kombu_module.Exchange = old_Exchange
-                kombu_module.Queue = old_Queue
-
-        return wrapper
-
-    return decorator
+@contextlib.contextmanager
+def patch(kombu_module, pubsub):
+    try:
+        old_Connection = kombu_module.Connection
+        old_Exchange = kombu_module.Connection
+        old_Queue = kombu_module.Queue
+        kombu_module.Connection = Connection
+        kombu_module.Exchange = Exchange
+        kombu_module.Queue = Queue
+        kombu_module.Exchange.reset_mock()
+        kombu_module.Queue.reset_mock()
+        pubsub.connection = Connection(pubsub.amqp_url)
+        yield
+    finally:
+        kombu_module.Connection = old_Connection
+        kombu_module.Exchange = old_Exchange
+        kombu_module.Queue = old_Queue

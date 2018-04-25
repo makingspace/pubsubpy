@@ -1,60 +1,86 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-from unittest import TestCase
+import pytest
 
 import kombu
+from pubsub import PubSub, PubSubConsumerManager
 import mock
-
-import pubsub
 
 from . import kombu_mock
 
 
-class PubsubTestBase(TestCase):
-    def setUp(self):
-        setattr(pubsub, '__GLOBAL_CONFIG', {
-            pubsub.AMQP_URL: 'test',
-            pubsub.MODEL_EXCHANGE: 'test',
-        })
+@pytest.fixture
+def pubsub():
+    app = PubSub("test", "test")
+
+    return app
 
 
-class PublishTests(PubsubTestBase):
-    @kombu_mock.patch(kombu)
-    def test_publish_model_event(self):
-        model_name = 'TestModel'
-        event_name = 'cancelled'
-        obj = {'a': 1, 'b': [2, 3], 'c': {'key': 'value'}}
+_NAMESPACE = "namespace"
+
+
+@pytest.fixture
+def namespaced_pubsub():
+    app = PubSub("test", "test", namespace=_NAMESPACE)
+
+    return app
+
+
+def test_publish_model_event(pubsub):
+    model_name = 'TestModel'
+    event_name = 'cancelled'
+    obj = {'a': 1, 'b': [2, 3], 'c': {'key': 'value'}}
+
+    with kombu_mock.patch(kombu, pubsub):
         pubsub.publish_model_event(model_name, event_name, obj)
         mock_publish = kombu.Connection.last_connection.producer.publish
-        mock_publish.assert_called_once()
-        self.assertIn({'object': obj}, mock_publish.call_args[0])
-        self.assertIn(('routing_key', 'TestModel.cancelled'),
-                      mock_publish.call_args[1].items())
+
+    mock_publish.assert_called_once()
+    assert {'object': obj} in mock_publish.call_args[0]
+    assert ('routing_key',
+            'TestModel.cancelled') in mock_publish.call_args[1].items()
 
 
 def func(b, m):
     return None
 
 
-class SubscribeTests(PubsubTestBase):
-    @kombu_mock.patch(kombu)
-    def test_subscribe_creates_queue(self):
+def test_subscribe_creates_queue(pubsub):
+    topic = 'TestModel.cancelled'
+
+    assert len(pubsub.consumer_manager.callback_pairs) == 0
+
+    with kombu_mock.patch(kombu, pubsub):
+        pubsub.subscribe(topic)(func)
+
+    assert len(pubsub.consumer_manager.callback_pairs) == 1
+
+    queue = pubsub.consumer_manager.callback_pairs[0][0]
+    assert queue.routing_key == topic
+
+
+def test_subscribe_adds_to_registry(pubsub):
+    with kombu_mock.patch(kombu, pubsub):
         pubsub.subscribe('TestModel.cancelled')(func)
-        kombu.Queue.assert_called_once()
-        self.assertIn(('routing_key', 'TestModel.cancelled'),
-                      kombu.Queue.call_args[1].items())
 
-    @kombu_mock.patch(kombu)
-    def test_subscribe_adds_to_registry(self):
-        pubsub.subscribe('TestModel.cancelled')(func)
-        self.assertEquals(func.__name__,
-                          pubsub.sub._topic_registry[0][1].__name__)
+    assert func.__name__ == pubsub.consumer_manager.callback_pairs[0][
+        1].__name__
+
+    with kombu_mock.patch(kombu, pubsub):
+        with mock.patch.object(PubSubConsumerManager,
+                               'consume') as mock_consume:
+            pubsub.drain()
+
+            mock_consume.assert_called_once()
 
 
-class DrainTests(TestCase):
-    @kombu_mock.patch(kombu)
-    @mock.patch('pubsub.sub._drain_all_events')
-    def test_drain_queue(self, mock_drain_all_events):
-        pubsub.drain()
-        mock_drain_all_events.assert_called_once()
+def test_namespacing(namespaced_pubsub):
+    assert namespaced_pubsub.namespace == _NAMESPACE
+
+    with kombu_mock.patch(kombu, namespaced_pubsub):
+        exchange = namespaced_pubsub._create_or_verify_model_exchange(
+            namespaced_pubsub.acquire())
+
+    assert exchange.name == "{}_{}".format(namespaced_pubsub._model_exchange_name,
+                                           _NAMESPACE)

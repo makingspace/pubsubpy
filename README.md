@@ -13,13 +13,13 @@ depot --install pubsubpy
 
 ### Configuration
 
-#### `init()`
+#### `PubSub`
 
-Exactly one call to the `init()` method is required to configure the global library settings.
+Subscribers and publishers are managed by the `PubSub` class. Initialize a `PubSub` object with an amqp_url and model_exchange name, and the object exposes three main methods for managing pubsub:
 
-This must be called before any other call is made, including `@subscribe`, which means before any function decorated with `@subscribe` is loaded.
-
-For Django services, it is recommended that `init()` is called from `settings.py` files.
+- `subscribe()`, a decorator around subscriber functions;
+- `drain()`, a method which will consume all registered queues and process with subscribers;
+- `publish_model_event()`, which will publish a new event to the exchange.
 
 ##### Required settings
 * `amqp_url`: The url of the AMQP exchange service.
@@ -27,11 +27,9 @@ For Django services, it is recommended that `init()` is called from `settings.py
 
 ##### Example
 ```
-PUBSUB_AMQP_URL = 'amqp://user:user@192.168.111.222:5672//'
-PUBSUB_MODEL_EXCHANGE = 'pubsub'
-if PUBSUB_AMQP_URL:
-    from pubsub import init
-    init(amqp_url=PUBSUB_AMQP_URL, model_exchange=PUBSUB_MODEL_EXCHANGE)
+from pubsub import PubSub
+if settings.PUBSUB_AMQP_URL and settings.PUBSUB_MODEL_EXCHANGE:
+	pubsub_app = PubSub(settings.PUBSUB_AMQP_URL, settings.PUBSUB_MODEL_EXCHANGE)
 ```
 
 ### Publishing
@@ -47,8 +45,7 @@ if PUBSUB_AMQP_URL:
 
 ##### Example
 ```
-import pubsub
-pubsub.publish_model_event('booking','saved', instance.to_service_model())
+pubsub_app.publish_model_event('booking','saved', instance.to_service_model())
 ```
 
 ### Subscribing
@@ -59,7 +56,7 @@ Use this decorator to register a function as a handler for model events describe
 
 The decorated function should take two positional arguments, for instance:
 ```
-@subscribe('booking.*')
+@pubsub_app.subscribe('booking.*')
 def process_booking_event(body, message):
     ...
 ```
@@ -75,8 +72,7 @@ In most cases, the `body` argument should be sufficient to process events, as me
 
 ##### Example
 ```
-import pubsub
-@pubsub.subscribe('booking.*')
+@pubsub_app.subscribe('booking.*')
 def update_booking(body, message):
     print(body, message)
 ```
@@ -90,11 +86,11 @@ none
 
 ##### Example
 ```
-import pubsub
+from my_app.pubsub import pubsub_app
 @scheduled(minute='*')
 @app.task
 def pubsub_listen():
-    pubsub.drain()
+    pubsub_app.drain()
 ```
 
 ## Background
