@@ -41,7 +41,8 @@ class CallbackHandler(object):
             try:
                 self.callback(body, message)
             except Exception as e:
-                logger.critical(str(e))
+                logger.exception(
+                    "Callback failure, disabling handler: {}.".format(str(e)))
                 self.enabled = False
 
     def ack(self, body, message):
