@@ -1,11 +1,11 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import pytest
-
 import kombu
-from pubsub import PubSub, PubSubConsumerManager
+
 import mock
+import pytest
+from pubsub import CallbackHandler, PubSub, PubSubConsumerManager
 
 from . import kombu_mock
 
@@ -84,3 +84,34 @@ def test_namespacing(namespaced_pubsub):
 
     assert exchange.name == "{}_{}".format(namespaced_pubsub._model_exchange_name,
                                            _NAMESPACE)
+
+@pytest.fixture
+def failing_callback_manager_with_flag():
+    call_count = [0]
+    def callback(x, y):
+        call_count[0] += 1
+        raise RuntimeError()
+    return CallbackHandler(callback), call_count
+
+def test_callback_manager(failing_callback_manager_with_flag):
+    class Message(object):
+        def __init__(self):
+            self.acked = False
+
+        def ack(self):
+            self.acked = True
+
+    message1 = Message()
+    message2 = Message()
+
+    handler, flag = failing_callback_manager_with_flag
+
+    handler.evaluate(None, message1)
+    handler.ack(None, message1)
+    handler.evaluate(None, message2)
+    handler.ack(None, message2)
+
+    assert flag == [1]
+    assert not handler.enabled
+    assert not message1.acked
+    assert not message2.acked

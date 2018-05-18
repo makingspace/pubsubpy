@@ -26,6 +26,37 @@ def payload(obj):
     return {'object': obj}
 
 
+class CallbackHandler(object):
+    """
+    Maintain state around handling a callback. Callback failure should stop
+    processing on that queue, but allow other queues to be processed.
+    """
+
+    def __init__(self, callback):
+        self.callback = callback
+        self.enabled = True
+
+    def evaluate(self, body, message):
+        if self.enabled:
+            try:
+                self.callback(body, message)
+            except Exception as e:
+                logger.exception(
+                    "Callback failure, disabling handler: {}.".format(str(e)))
+                self.enabled = False
+
+    def ack(self, body, message):
+        if self.enabled:
+            message.ack()
+        else:
+            logger.debug(
+                "NACK: Handler already failed.",
+                extra={
+                    "message": message,
+                    "callback": str(self.callback)
+                })
+
+
 class PubSubConsumerManager(ConsumerMixin):
     """
     Object that governs draining events associated with subscribed queues.
@@ -50,10 +81,14 @@ class PubSubConsumerManager(ConsumerMixin):
             len(self.callback_pairs)))
 
     def get_consumers(self, Consumer, channel):
-        return [
-            Consumer(queues=[queue], callbacks=[callback, self.ack])
-            for queue, callback in self.callback_pairs
-        ]
+        result = []
+        for queue, callback in self.callback_pairs:
+            handler = CallbackHandler(callback)
+            result.append(
+                Consumer(
+                    queues=[queue], callbacks=[handler.evaluate, handler.ack]))
+
+        return result
 
     def ack(self, body, message):
         logger.debug("{} ACK".format(message))
