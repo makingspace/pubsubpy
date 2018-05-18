@@ -1,7 +1,8 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import os, sys
+import os
+import sys
 
 from setuptools import find_packages, setup
 
@@ -21,7 +22,7 @@ setup_requires = ['pytest-runner'] if {'pytest', 'test', 'ptr'}.intersection(
 
 setup(
     name='pubsubpy',
-    version='2.1b3',
+    version='2.2',
     packages=find_packages(),
     install_requires=[
         'future',
