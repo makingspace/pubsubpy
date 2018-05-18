@@ -5,7 +5,7 @@ import kombu
 
 import mock
 import pytest
-from pubsub import PubSub, PubSubConsumerManager, CallbackHandler
+from pubsub import CallbackHandler, PubSub, PubSubConsumerManager
 
 from . import kombu_mock
 
@@ -87,11 +87,11 @@ def test_namespacing(namespaced_pubsub):
 
 @pytest.fixture
 def failing_callback_manager_with_flag():
-    flag = [0]
+    call_count = [0]
     def callback(x, y):
-        flag[0] += 1
+        call_count[0] += 1
         raise RuntimeError()
-    return CallbackHandler(callback), flag
+    return CallbackHandler(callback), call_count
 
 def test_callback_manager(failing_callback_manager_with_flag):
     class Message(object):

@@ -47,6 +47,13 @@ class CallbackHandler(object):
     def ack(self, body, message):
         if self.enabled:
             message.ack()
+        else:
+            logger.debug(
+                "NACK: Handler already failed.",
+                extra={
+                    "message": message,
+                    "callback": str(self.callback)
+                })
 
 
 class PubSubConsumerManager(ConsumerMixin):
