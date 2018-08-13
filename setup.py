@@ -22,7 +22,7 @@ setup_requires = ['pytest-runner'] if {'pytest', 'test', 'ptr'}.intersection(
 
 setup(
     name='pubsubpy',
-    version='2.2',
+    version='2.3.0',
     packages=find_packages(),
     install_requires=[
         'future',
