@@ -4,10 +4,12 @@ A python client for an AMQP-based PubSub system. Specifically designed to work w
 
 ## Installing
 
-The package can be installed from the GemFury private repo via depot:
+The package can be installed from PyPI:
 ```
-depot --install pubsubpy
+pip install pubsubpy
 ```
+
+The underlying kombu library can be used with both `librabbitmq` and the pure Python `amqp` libraries, and will prefer `librabbitmq` if present. We recommend `librabbitmq` for production use if it is available for your platform. Other AMQP transports are also available and may work, but have not been tested. See here for more details on potential AMQP transports: http://docs.celeryproject.org/projects/kombu/en/latest/userguide/connections.html#amqp-transports
 
 ## Interface
 
@@ -85,6 +87,7 @@ Process all outstanding messages with all registered subscription callbacks. Con
 none
 
 ##### Example
+As a periodic celery task:
 ```
 from my_app.pubsub import pubsub_app
 @scheduled(minute='*')
@@ -108,22 +111,13 @@ def pubsub_listen():
 1. Install `pyenv` via O/S package manager
 1. Install target Python versions (i.e. `pyenv install 2.7.14`)
 1. Create project virtualenv (using one of the target pythons)
-1. Install `depot`
-1. Install all requirements files (i.e. `depot --install -r requirements.txt`)
+1. Install all requirements files (`pip install -r requirements.txt`, etc)
 
 ### Running the testsuite locally
 
 Once your local env is set up, you can run the testsuite with `pytest`.
 You can also run the tests on all supported Python configurations with `tox`.
 
-### Packaging
-
-1. Ensure you have incremented the version number in `setup.py`
-1. Run `python setup.py bdist_wheel` to build the wheel package
-    * builds a universal wheel that works on py2/py3 and all platforms
-1. Upload package to gemfury repo
-
 ### Future Work / Current Caveats
 
-* There is only one global config, which can only be initialized once and must be initialized before any modules containing subscribers are even loaded.
 * Subscribers could unwittingly share a queue if a subscriber is contained in a library that is included in multiple different services. The queue key is not unique across services.

@@ -22,7 +22,7 @@ setup_requires = ['pytest-runner'] if {'pytest', 'test', 'ptr'}.intersection(
 
 setup(
     name='pubsubpy',
-    version='2.2',
+    version='2.3.0',
     packages=find_packages(),
     install_requires=[
         'future',
@@ -34,7 +34,7 @@ setup(
         'pytest',
     ],
     include_package_data=True,
-    license='All Rights Reserved',
+    license='MIT',
     description=('Client library for an AMQP-based pubsub.'),
     long_description=README,
     url='https://github.com/makingspace/pubsubpy',
@@ -46,7 +46,6 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.4.3',
         'Programming Language :: Python :: 3.6',
     ],
 )
