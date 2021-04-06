@@ -109,9 +109,9 @@ def pubsub_listen():
 ### Setting up your env
 
 1. Install `pyenv` via O/S package manager
-1. Install target Python versions (i.e. `pyenv install 2.7.14`)
-1. Create project virtualenv (using one of the target pythons)
-1. Install all requirements files (`pip install -r requirements.txt`, etc)
+2. Install [`poetry`](https://python-poetry.org/docs/#installation).
+3. Install target Python versions (i.e. `pyenv install 3.7.5`)
+4. Create virtualenv and install project dependencies using `poetry install`
 
 ### Running the testsuite locally
 
